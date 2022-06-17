@@ -3,6 +3,7 @@ package main
 import (
 	"image/color"
 	"math/rand"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -18,6 +19,8 @@ import (
 var max int = 0
 var pulled []int
 var duplicateCheck bool = true
+var sortOut bool = true
+var pulledstr []string
 
 // check if int i is in slice s
 func contains(s []int, i int) bool {
@@ -29,7 +32,6 @@ func contains(s []int, i int) bool {
 	return false
 }
 
-// generate slice with n amount pseudo random numbers
 func generate(n int) []int {
 	var currentSelect []int
 	var current int
@@ -39,21 +41,26 @@ func generate(n int) []int {
 			break
 		} else {
 			// generate rand number
+			// if in list already -> again
 			current = rand.Intn(max) + 1
 			if contains(pulled, current) && duplicateCheck {
-				iterator-- // if duplicates not allowed, generate another one. Not effective but enough.
+				iterator--
 			} else {
 				currentSelect = append(currentSelect, current)
 				pulled = append(pulled, current)
 			}
 		}
 	}
+	if sortOut {
+		sort.Ints(currentSelect)
+	}
 	return currentSelect
 }
 
-func updateOut(out *widget.Label, in int) {
+func updateOut(out *widget.Label, in int) string {
 	if max <= 0 {
-		out.SetText("First set in settings the max amount of numbers to generate.")
+		out.SetText("First set a max amount of numbers in the settings!")
+		return ""
 	} else {
 		generated := generate(in)
 		generatedAsString := []string{}
@@ -64,11 +71,14 @@ func updateOut(out *widget.Label, in int) {
 			generatedAsString = append(generatedAsString, text)
 		}
 
-		resultGenerated := strings.Join(generatedAsString, ";\n")
+		resultGenerated := strings.Join(generatedAsString, "; ")
+		resultGeneratedOut := strings.Join(generatedAsString, ";\n")
 		if len(resultGenerated) == 0 {
-			out.SetText("Set max amount of numbers has been generated.")
+			out.SetText("Max amount of numbers has been generated.")
+			return ""
 		} else {
-			out.SetText(resultGenerated)
+			out.SetText(resultGeneratedOut)
+			return resultGenerated
 		}
 	}
 }
@@ -101,8 +111,21 @@ func main() {
 
 	select1.PlaceHolder = "Yes"
 
+	text5 := canvas.NewText("Sort output?", color.White)
+
+	select2 := widget.NewSelect([]string{"Yes", "No"}, func(value string) {
+		if value == "Yes" {
+			sortOut = true
+		} else if value == "No" {
+			sortOut = false
+		}
+	})
+
+	select2.PlaceHolder = "Yes"
+
 	button1 := widget.NewButton("Reset", func() {
 		pulled = nil
+		pulledstr = nil
 	})
 
 	grid1Sub1 := container.New(layout.NewAdaptiveGridLayout(2),
@@ -111,7 +134,9 @@ func main() {
 	grid1Sub2 := container.New(layout.NewAdaptiveGridLayout(2),
 		text2, select1)
 
-	gridMain1 := container.New(layout.NewAdaptiveGridLayout(1), grid1Sub1, grid1Sub2, button1)
+	grid1Sub3 := container.New(layout.NewAdaptiveGridLayout(2), text5, select2)
+
+	gridMain1 := container.New(layout.NewAdaptiveGridLayout(1), grid1Sub1, grid1Sub2, grid1Sub3, button1)
 
 	// TAB 2 GENERATOR
 
@@ -124,7 +149,7 @@ func main() {
 
 	content2 := container.NewVBox(input2, widget.NewButton("Generate", func() {
 		p, _ := strconv.Atoi(strings.Split(input2.Text, " ")[0])
-		updateOut(generatedOut, p)
+		pulledstr = append(pulledstr, updateOut(generatedOut, p))
 	}))
 
 	grid2Sub1 := container.New(layout.NewAdaptiveGridLayout(2),
@@ -137,37 +162,30 @@ func main() {
 
 	pulls := binding.NewString()
 	content3 := widget.NewLabelWithData(pulls)
-	pulls.Set("All generated numbers")
+	pulls.Set("All generated numbers:")
 
-	text4 := canvas.NewText("All generated numbers in same order:", color.White)
+	scroll1 := container.NewScroll(content3)
 
-	gridMain3 := container.New(layout.NewVBoxLayout(), text4, content3)
-
-	// Füge zusammen
+	// Put together
 
 	tabs := container.NewAppTabs(
 		container.NewTabItem("Settings", gridMain1),
 		container.NewTabItem("Generator", gridMain2),
-		container.NewTabItem("History", gridMain3),
+		container.NewTabItem("History", scroll1),
 	)
 
 	w.SetContent(tabs)
 
 	go func() {
 		for range time.Tick(time.Second) {
-
 			allPulledAsString := []string{}
 
-			for i := range pulled {
-				j := pulled[i]
-				text := strconv.Itoa(j)
-				allPulledAsString = append(allPulledAsString, text)
-				if i%20 == 0 && i != 0 {
-					allPulledAsString = append(allPulledAsString, "\n")
-				}
+			for i := range pulledstr {
+				j := "Round " + strconv.Itoa(i+1) + ":     " + pulledstr[i]
+				allPulledAsString = append(allPulledAsString, j)
 			}
 
-			resultPulled := " | " + strings.Join(allPulledAsString, " | ")
+			resultPulled := strings.Join(allPulledAsString, "\n")
 
 			pulls.Set(resultPulled)
 		}
